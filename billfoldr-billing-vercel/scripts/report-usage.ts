@@ -67,7 +67,7 @@ async function main() {
         event_name: 'docs_uploaded', // dein Zähler-Ereignisname
         payload: {
           stripe_customer_id: userRow.stripe_customer_id, // muss mit dem Zähler-Mapping übereinstimmen
-          value: over,                                     // Anzahl Over-Units dieses Monats
+          value: String(over),          // <— hier String statt number - Anzahl Over-Units dieses Monats
         },
         timestamp: Math.floor(lastMonthEnd.getTime() / 1000),
       });
