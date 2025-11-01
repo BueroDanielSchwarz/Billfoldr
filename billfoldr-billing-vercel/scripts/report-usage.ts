@@ -63,7 +63,7 @@ async function main() {
 
     // >>> NEU: Meter Event statt UsageRecord
     try {
-      await stripe.meterEvents.create({
+      await stripe.billing.meterEvents.create({
         event_name: 'docs_uploaded', // dein Zähler-Ereignisname
         payload: {
           stripe_customer_id: userRow.stripe_customer_id, // muss mit dem Zähler-Mapping übereinstimmen
