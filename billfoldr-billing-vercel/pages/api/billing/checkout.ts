@@ -43,6 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     billing_address_collection: 'required',
     allow_promotion_codes: false,
     automatic_tax: { enabled: true },
+    customer_update: { address: 'auto' },
     line_items: [
       { price: PRICE_YEARLY_FIXED, quantity: 1 },
       { price: PRICE_OVERAGE_METERED },
