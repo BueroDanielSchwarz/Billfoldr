@@ -19,12 +19,16 @@ async function main() {
   for (const s of subs || []) {
     if (!s.metered_item_id) continue;
 
-    const { data: usageRow, error: uErr } = await supabaseAdmin
-      .rpc('get_docs_count_month', {
-        p_user_id: s.user_id,
-        p_year: lastMonthStart.getUTCFullYear(),
-        p_month: lastMonthStart.getUTCMonth() + 1
-      }).single();
+   const { data: usageRow, error: uErr }: {
+  data: { docs_total?: number } | null,
+  error: any
+} = await supabaseAdmin
+  .rpc('get_docs_count_month', {
+    p_user_id: s.user_id,
+    p_year: lastMonthStart.getUTCFullYear(),
+    p_month: lastMonthStart.getUTCMonth() + 1
+  })
+  .single();
 
     if (uErr) { console.error('rpc error', s.user_id, uErr); continue; }
 
