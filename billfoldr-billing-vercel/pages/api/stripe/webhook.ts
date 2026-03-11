@@ -77,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           await supabaseAdmin.from('entitlements').upsert({
             user_id: uid,
-            cloud_access: sub.status === 'active' || sub.status === 'trialing',
+            cloud_access: ['active','trialing','past_due'].includes(sub.status)
             max_base_per_month: 1000,
             valid_until: new Date(sub.current_period_end * 1000).toISOString(),
           }, { onConflict: 'user_id' });
@@ -94,7 +94,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const uid = row?.user_id;
         if (uid) {
           await supabaseAdmin.from('subscriptions').update({ status: 'canceled' }).eq('stripe_subscription_id', sub.id);
-          await supabaseAdmin.from('entitlements').update({ cloud_access: false }).eq('user_id', uid);
+          await supabaseAdmin
+.from('entitlements')
+.update({
+  cloud_access: false,
+  valid_until: new Date(sub.current_period_end * 1000).toISOString()
+})
+.eq('user_id', uid);
         }
         break;
       }
