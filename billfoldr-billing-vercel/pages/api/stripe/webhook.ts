@@ -77,7 +77,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
           await supabaseAdmin.from('entitlements').upsert({
             user_id: uid,
-            cloud_access: ['active','trialing','past_due'].includes(sub.status)
+            cloud_access: ['active','trialing','past_due'].includes(sub.status),
             max_base_per_month: 1000,
             valid_until: new Date(sub.current_period_end * 1000).toISOString(),
           }, { onConflict: 'user_id' });
