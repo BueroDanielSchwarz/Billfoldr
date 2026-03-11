@@ -46,7 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     customer_update: { address: 'auto' },
     line_items: [
       { price: PRICE_YEARLY_FIXED, quantity: 1 },
-      { price: PRICE_OVERAGE_METERED },
     ],
     success_url: (returnTo || successBase) + '?session_id={CHECKOUT_SESSION_ID}',
     cancel_url: cancelBase,
