@@ -114,7 +114,7 @@ export default async function handler(
           .from('subscriptions')
           .select('user_id')
           .eq('stripe_subscription_id', sub.id)
-          .single();
+          .maybeSingle();
 
         const uid = row?.user_id;
 
@@ -160,7 +160,7 @@ export default async function handler(
           .from('subscriptions')
           .select('user_id')
           .eq('stripe_subscription_id', sub.id)
-          .single();
+          .maybeSingle();
 
         const uid = row?.user_id;
 
