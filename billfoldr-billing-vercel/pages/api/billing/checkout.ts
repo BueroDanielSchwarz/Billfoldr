@@ -48,19 +48,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   // 1) Supabase prüfen: hat der User bereits ein aktives/relevantes Abo?
-  const { data: existingSub, error: existingSubErr } = await supabaseAdmin
+  const { data: existingSubs, error: existingSubErr } = await supabaseAdmin
     .from('subscriptions')
     .select('stripe_subscription_id, status')
     .eq('user_id', uid)
-    .in('status', ['active', 'trialing', 'past_due'])
-    .maybeSingle();
+    .in('status', ['active', 'trialing', 'past_due']);
 
   if (existingSubErr) {
     console.error('Failed to check existing subscription in Supabase', existingSubErr);
     return res.status(500).json({ error: 'Could not verify subscription state' });
   }
 
-  if (existingSub) {
+  if (existingSubs && existingSubs.length > 0) {
     return res.status(409).json({ error: 'Subscription already active' });
   }
 
