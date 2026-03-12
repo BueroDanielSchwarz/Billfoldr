@@ -70,10 +70,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const uid = row?.user_id;
         if (uid) {
           await supabaseAdmin.from('subscriptions').update({
-            status: sub.status,
-            current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-            current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-          }).eq('stripe_subscription_id', sub.id);
+  status: sub.status,
+  cancel_at_period_end: sub.cancel_at_period_end,
+  current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
+  current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+}).eq('stripe_subscription_id', sub.id);
 
           await supabaseAdmin.from('entitlements').upsert({
             user_id: uid,
