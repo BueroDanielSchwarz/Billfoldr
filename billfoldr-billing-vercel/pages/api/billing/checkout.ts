@@ -15,6 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const parsed = bodySchema.safeParse(req.body);
+
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error.flatten() });
   }
@@ -92,7 +93,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     billing_address_collection: 'required',
     allow_promotion_codes: false,
     automatic_tax: { enabled: true },
-    customer_update: { address: 'auto' },
+    customer_update: {
+      address: 'auto',
+      name: 'auto',
+    },
     line_items: [{ price: PRICE_YEARLY_FIXED, quantity: 1 }],
     success_url: `${returnTo || successBase}?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: cancelBase,
