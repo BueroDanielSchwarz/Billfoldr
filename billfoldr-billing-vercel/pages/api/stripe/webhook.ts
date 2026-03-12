@@ -59,8 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         break;
       }
-      case 'customer.subscription.updated':
-      case 'customer.subscription.created': {
+      case 'customer.subscription.updated': {
         const sub = event.data.object as any;
         const { data: row } = await supabaseAdmin
           .from('subscriptions')
