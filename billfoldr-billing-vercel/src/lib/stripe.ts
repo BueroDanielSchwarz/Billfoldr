@@ -1,8 +1,20 @@
 import Stripe from 'stripe';
 
-if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY missing');
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('STRIPE_SECRET_KEY missing');
+}
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+if (!process.env.STRIPE_PRICE_YEARLY_FIXED) {
+  throw new Error('STRIPE_PRICE_YEARLY_FIXED missing');
+}
 
-export const PRICE_YEARLY_FIXED = process.env.STRIPE_PRICE_YEARLY_FIXED!;
-export const PRICE_OVERAGE_METERED = process.env.STRIPE_PRICE_OVERAGE_METERED!;
+if (!process.env.STRIPE_PRICE_OVERAGE_METERED) {
+  throw new Error('STRIPE_PRICE_OVERAGE_METERED missing');
+}
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2026-02-25.clover',
+});
+
+export const PRICE_YEARLY_FIXED = process.env.STRIPE_PRICE_YEARLY_FIXED;
+export const PRICE_OVERAGE_METERED = process.env.STRIPE_PRICE_OVERAGE_METERED;
