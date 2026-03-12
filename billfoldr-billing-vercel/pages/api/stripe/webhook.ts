@@ -18,10 +18,27 @@ function buffer(req: NextApiRequest): Promise<Buffer> {
   });
 }
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+function toIsoDate(unixSeconds?: number | null): string | null {
+  if (!unixSeconds) return null;
+  return new Date(unixSeconds * 1000).toISOString();
+}
+
+function getFixedItemId(sub: any): string | null {
+  return (
+    sub.items?.data?.find((item: any) => item.price?.recurring?.interval === 'year')?.id ||
+    null
+  );
+}
+
+function getMeteredItemId(sub: any): string | null {
+  return (
+    sub.items?.data?.find(
+      (item: any) => item.price?.recurring?.usage_type === 'metered'
+    )?.id || null
+  );
+}
+
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
     return res.status(405).send('Method Not Allowed');
   }
@@ -34,7 +51,7 @@ export default async function handler(
 
   const buf = await buffer(req);
 
-  let event;
+  let event: any;
 
   try {
     event = stripe.webhooks.constructEvent(
@@ -51,32 +68,95 @@ export default async function handler(
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as any;
-        const subscriptionId = session.subscription as string;
-        const customerId = session.customer as string;
+        const subscriptionId = session.subscription as string | undefined;
+        const customerId = session.customer as string | undefined;
         const uid = session.metadata?.uid as string | undefined;
 
-        if (uid) {
-          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+        if (!uid || !subscriptionId || !customerId) {
+          break;
+        }
 
+        const sub = await stripe.subscriptions.retrieve(subscriptionId);
+
+        await supabaseAdmin.from('subscriptions').upsert(
+          {
+            user_id: uid,
+            stripe_subscription_id: sub.id,
+            status: sub.status,
+            cancel_at_period_end: sub.cancel_at_period_end ?? false,
+            current_period_start: toIsoDate(sub.current_period_start),
+            current_period_end: toIsoDate(sub.current_period_end),
+            fixed_item_id: getFixedItemId(sub),
+            metered_item_id: getMeteredItemId(sub),
+          },
+          {
+            onConflict: 'stripe_subscription_id',
+          }
+        );
+
+        await supabaseAdmin.from('entitlements').upsert(
+          {
+            user_id: uid,
+            cloud_access: ['active', 'trialing', 'past_due'].includes(sub.status),
+            max_base_per_month: 1000,
+            valid_until: toIsoDate(sub.current_period_end),
+          },
+          {
+            onConflict: 'user_id',
+          }
+        );
+
+        await supabaseAdmin
+          .from('app_users')
+          .update({ stripe_customer_id: customerId })
+          .eq('user_id', uid);
+
+        break;
+      }
+
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated': {
+        const sub = event.data.object as any;
+        const customerId =
+          typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
+
+        let uid: string | undefined;
+
+        // Zuerst versuchen wir die Zuordnung über subscription_id
+        const { data: existingBySub } = await supabaseAdmin
+          .from('subscriptions')
+          .select('user_id')
+          .eq('stripe_subscription_id', sub.id)
+          .maybeSingle();
+
+        if (existingBySub?.user_id) {
+          uid = existingBySub.user_id;
+        }
+
+        // Falls noch nichts gefunden wurde: Fallback über stripe_customer_id
+        if (!uid && customerId) {
+          const { data: userByCustomer } = await supabaseAdmin
+            .from('app_users')
+            .select('user_id')
+            .eq('stripe_customer_id', customerId)
+            .maybeSingle();
+
+          if (userByCustomer?.user_id) {
+            uid = userByCustomer.user_id;
+          }
+        }
+
+        if (uid) {
           await supabaseAdmin.from('subscriptions').upsert(
             {
               user_id: uid,
               stripe_subscription_id: sub.id,
               status: sub.status,
-              current_period_start: new Date(
-                sub.current_period_start * 1000
-              ).toISOString(),
-              current_period_end: new Date(
-                sub.current_period_end * 1000
-              ).toISOString(),
-              fixed_item_id:
-                sub.items.data.find(
-                  (i) => !i.price.recurring?.usage_type
-                )?.id || null,
-              metered_item_id:
-                sub.items.data.find(
-                  (i) => i.price.recurring?.usage_type === 'metered'
-                )?.id || null,
+              cancel_at_period_end: sub.cancel_at_period_end ?? false,
+              current_period_start: toIsoDate(sub.current_period_start),
+              current_period_end: toIsoDate(sub.current_period_end),
+              fixed_item_id: getFixedItemId(sub),
+              metered_item_id: getMeteredItemId(sub),
             },
             {
               onConflict: 'stripe_subscription_id',
@@ -86,63 +166,9 @@ export default async function handler(
           await supabaseAdmin.from('entitlements').upsert(
             {
               user_id: uid,
-              cloud_access: true,
+              cloud_access: ['active', 'trialing', 'past_due'].includes(sub.status),
               max_base_per_month: 1000,
-              valid_until: new Date(
-                sub.current_period_end * 1000
-              ).toISOString(),
-            },
-            {
-              onConflict: 'user_id',
-            }
-          );
-
-          await supabaseAdmin
-            .from('app_users')
-            .update({ stripe_customer_id: customerId })
-            .eq('user_id', uid);
-        }
-
-        break;
-      }
-
-      case 'customer.subscription.updated':
-      case 'customer.subscription.created': {
-        const sub = event.data.object as any;
-
-        const { data: row } = await supabaseAdmin
-          .from('subscriptions')
-          .select('user_id')
-          .eq('stripe_subscription_id', sub.id)
-          .maybeSingle();
-
-        const uid = row?.user_id;
-
-        if (uid) {
-          await supabaseAdmin
-            .from('subscriptions')
-            .update({
-              status: sub.status,
-              cancel_at_period_end: sub.cancel_at_period_end,
-              current_period_start: new Date(
-                sub.current_period_start * 1000
-              ).toISOString(),
-              current_period_end: new Date(
-                sub.current_period_end * 1000
-              ).toISOString(),
-            })
-            .eq('stripe_subscription_id', sub.id);
-
-          await supabaseAdmin.from('entitlements').upsert(
-            {
-              user_id: uid,
-              cloud_access: ['active', 'trialing', 'past_due'].includes(
-                sub.status
-              ),
-              max_base_per_month: 1000,
-              valid_until: new Date(
-                sub.current_period_end * 1000
-              ).toISOString(),
+              valid_until: toIsoDate(sub.current_period_end),
             },
             {
               onConflict: 'user_id',
@@ -155,28 +181,48 @@ export default async function handler(
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object as any;
+        const customerId =
+          typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
 
-        const { data: row } = await supabaseAdmin
+        let uid: string | undefined;
+
+        const { data: existingBySub } = await supabaseAdmin
           .from('subscriptions')
           .select('user_id')
           .eq('stripe_subscription_id', sub.id)
           .maybeSingle();
 
-        const uid = row?.user_id;
+        if (existingBySub?.user_id) {
+          uid = existingBySub.user_id;
+        }
+
+        if (!uid && customerId) {
+          const { data: userByCustomer } = await supabaseAdmin
+            .from('app_users')
+            .select('user_id')
+            .eq('stripe_customer_id', customerId)
+            .maybeSingle();
+
+          if (userByCustomer?.user_id) {
+            uid = userByCustomer.user_id;
+          }
+        }
 
         if (uid) {
           await supabaseAdmin
             .from('subscriptions')
-            .update({ status: 'canceled' })
+            .update({
+              status: 'canceled',
+              cancel_at_period_end: false,
+              current_period_end: toIsoDate(sub.current_period_end),
+            })
             .eq('stripe_subscription_id', sub.id);
 
           await supabaseAdmin
             .from('entitlements')
             .update({
               cloud_access: false,
-              valid_until: new Date(
-                sub.current_period_end * 1000
-              ).toISOString(),
+              valid_until: toIsoDate(sub.current_period_end),
             })
             .eq('user_id', uid);
         }
