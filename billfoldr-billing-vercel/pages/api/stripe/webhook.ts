@@ -66,7 +66,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .from('subscriptions')
           .select('user_id')
           .eq('stripe_subscription_id', sub.id)
-          .single();
+          .maybeSingle();
         const uid = row?.user_id;
         if (uid) {
           await supabaseAdmin.from('subscriptions').update({
@@ -91,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .from('subscriptions')
           .select('user_id')
           .eq('stripe_subscription_id', sub.id)
-          .single();
+          .maybeSingle();
         const uid = row?.user_id;
         if (uid) {
           await supabaseAdmin.from('subscriptions').update({ status: 'canceled' }).eq('stripe_subscription_id', sub.id);
