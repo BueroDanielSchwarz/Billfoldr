@@ -11,7 +11,6 @@ export const config = {
 function buffer(req: NextApiRequest): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-
     req.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
@@ -70,7 +69,6 @@ function getLatestInvoiceId(sub: any): string | null {
 }
 
 function getSubscriptionStateUi(sub: any): string {
-  if (sub.status === 'active' && sub.cancel_at_period_end) return 'canceling';
   if (['active', 'trialing', 'past_due'].includes(sub.status)) return 'active';
   if (sub.status === 'canceled') return 'canceled';
   return 'inactive';
@@ -91,9 +89,7 @@ async function resolveUidBySubscriptionOrCustomer(
       .eq('stripe_subscription_id', stripeSubscriptionId)
       .maybeSingle();
 
-    if (existingBySub?.user_id) {
-      return existingBySub.user_id;
-    }
+    if (existingBySub?.user_id) return existingBySub.user_id;
   }
 
   if (stripeCustomerId) {
@@ -103,9 +99,7 @@ async function resolveUidBySubscriptionOrCustomer(
       .eq('stripe_customer_id', stripeCustomerId)
       .maybeSingle();
 
-    if (userByCustomer?.user_id) {
-      return userByCustomer.user_id;
-    }
+    if (userByCustomer?.user_id) return userByCustomer.user_id;
   }
 
   return undefined;
@@ -126,9 +120,7 @@ async function syncAccess(uid: string, sub: any, stripeCustomerId?: string | nul
       will_cancel: sub.cancel_at_period_end ?? false,
       subscription_state_ui: subscriptionStateUi,
     },
-    {
-      onConflict: 'user_id',
-    }
+    { onConflict: 'user_id' }
   );
 
   const appUserPatch: Record<string, any> = {
@@ -166,9 +158,7 @@ async function upsertSubscription(uid: string, sub: any, stripeCustomerId?: stri
       plan_name: getPlanName(sub),
       latest_invoice_id: getLatestInvoiceId(sub),
     },
-    {
-      onConflict: 'stripe_subscription_id',
-    }
+    { onConflict: 'stripe_subscription_id' }
   );
 }
 
@@ -205,22 +195,15 @@ async function upsertInvoice(invoice: any) {
       period_end: toIsoDate(invoice.period_end),
       updated_at: new Date().toISOString(),
     },
-    {
-      onConflict: 'stripe_invoice_id',
-    }
+    { onConflict: 'stripe_invoice_id' }
   );
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).send('Method Not Allowed');
-  }
+  if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
 
   const sig = req.headers['stripe-signature'];
-
-  if (!sig) {
-    return res.status(400).send('Missing signature');
-  }
+  if (!sig) return res.status(400).send('Missing signature');
 
   const buf = await buffer(req);
 
@@ -237,17 +220,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
+  // Idempotenz
+  const { error: idempotencyError } = await supabaseAdmin
+    .from('stripe_event_log')
+    .insert({ stripe_event_id: event.id });
+
+  if (idempotencyError) {
+    return res.status(200).json({ received: true });
+  }
+
   try {
     switch (event.type) {
+
       case 'checkout.session.completed': {
         const session = event.data.object as any;
         const subscriptionId = session.subscription as string | undefined;
         const stripeCustomerId = session.customer as string | undefined;
         const uid = session.metadata?.uid as string | undefined;
 
-        if (!uid || !subscriptionId) {
-          break;
-        }
+        if (!uid || !subscriptionId) break;
 
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         await upsertSubscription(uid, sub, stripeCustomerId);
@@ -259,14 +250,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const sub = event.data.object as any;
+
         const stripeCustomerId =
           typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
 
         const uid = await resolveUidBySubscriptionOrCustomer(sub.id, stripeCustomerId);
-
-        if (!uid) {
-          break;
-        }
+        if (!uid) break;
 
         await upsertSubscription(uid, sub, stripeCustomerId);
         await syncAccess(uid, sub, stripeCustomerId);
@@ -276,14 +265,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object as any;
+
         const stripeCustomerId =
           typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;
 
         const uid = await resolveUidBySubscriptionOrCustomer(sub.id, stripeCustomerId);
-
-        if (!uid) {
-          break;
-        }
+        if (!uid) break;
 
         await supabaseAdmin
           .from('subscriptions')
@@ -304,10 +291,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           .eq('stripe_subscription_id', sub.id);
 
         await syncAccess(uid, sub, stripeCustomerId);
-
         break;
       }
 
+      case 'invoice.created':
       case 'invoice.finalized':
       case 'invoice.paid':
       case 'invoice.payment_failed': {
