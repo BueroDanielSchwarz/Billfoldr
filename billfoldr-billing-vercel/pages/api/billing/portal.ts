@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase";
 
-const ALLOWED_ORIGIN = "https://billfoldr.app";
+const ALLOWED_ORIGIN = "https://billward.app";
 
 function setCors(res: NextApiResponse) {
   res.setHeader("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
@@ -44,7 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const session = await stripe.billingPortal.sessions.create({
       customer: user.stripe_customer_id,
-      return_url: returnTo || "https://billfoldr.app/dashboard/",
+      return_url: returnTo || "https://billward.app/dashboard/",
     });
 
     return res.status(200).json({ url: session.url });
