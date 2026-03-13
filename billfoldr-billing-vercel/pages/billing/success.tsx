@@ -11,10 +11,10 @@ export default function SuccessPage() {
 
   return (
     <>
-      <Head><title>Billfoldr – Cloud freigeschaltet</title></Head>
+      <Head><title>Billward – Cloud freigeschaltet</title></Head>
       <main style={{maxWidth: 720, margin: '40px auto', padding: '0 16px', fontFamily: 'system-ui'}}>
         <h1 style={{fontSize: 28, marginBottom: 8}}>Erfolg!</h1>
-        <p>Dein Abo wurde aktiviert. Die Billfoldr Web-Services &amp; Cloud-Funktionen stehen dir jetzt zur Verfügung.</p>
+        <p>Dein Abo wurde aktiviert. Die Billward Web-Services &amp; Cloud-Funktionen stehen dir jetzt zur Verfügung.</p>
         <div style={{marginTop: 24}}>
           {returnUrl ? (
             <a href={returnUrl}
