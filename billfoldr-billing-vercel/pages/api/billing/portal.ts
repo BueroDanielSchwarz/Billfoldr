@@ -3,10 +3,15 @@ import { stripe } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const uid = req.query.uid as string;
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const { uid, returnTo } = req.body;
 
   if (!uid) {
-    return res.status(400).send("Missing uid");
+    return res.status(400).json({ error: "Missing uid" });
   }
 
   const { data: user } = await supabaseAdmin
@@ -16,13 +21,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     .single();
 
   if (!user?.stripe_customer_id) {
-    return res.status(400).send("No Stripe customer");
+    return res.status(400).json({ error: "No Stripe customer" });
   }
 
   const session = await stripe.billingPortal.sessions.create({
     customer: user.stripe_customer_id,
-    return_url: "https://billfoldr.app/dashboard/",
+    return_url: returnTo || "https://billfoldr.app/dashboard/",
   });
 
-  res.redirect(session.url);
+  return res.status(200).json({
+    url: session.url,
+  });
 }
