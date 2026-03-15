@@ -222,12 +222,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // Idempotenz
   const { error: idempotencyError } = await supabaseAdmin
-    .from('stripe_event_log')
-    .insert({ stripe_event_id: event.id });
+  .from('stripe_event_log')
+  .insert({ stripe_event_id: event.id });
 
-  if (idempotencyError) {
+if (idempotencyError) {
+  if (idempotencyError.code === '23505') {
     return res.status(200).json({ received: true });
   }
+
+  console.error('stripe_event_log insert failed', idempotencyError);
+  return res.status(500).send('Webhook idempotency check failed');
+}
 
   try {
     switch (event.type) {
