@@ -39,10 +39,10 @@ export default function PayPage() {
 
   return (
     <>
-      <Head><title>Billfoldr – Weiterleitung zum Checkout…</title></Head>
+      <Head><title>Billward – Weiterleitung zum Checkout…</title></Head>
       <main style={{maxWidth: 720, margin: '40px auto', padding: '0 16px', fontFamily: 'system-ui'}}>
         <h1 style={{fontSize: 24, marginBottom: 8}}>Weiterleitung zum Checkout…</h1>
-        <p>Bitte warten. Du wirst zu Stripe weitergeleitet.</p>
+        <p>Bitte kurz warten. Du wirst zu Stripe weitergeleitet.</p>
         {error && (
           <div style={{marginTop: 16, padding: 12, background: '#fee', color: '#900', borderRadius: 8}}>
             <strong>Fehler:</strong> {error}
